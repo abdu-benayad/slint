@@ -58,6 +58,13 @@ pub trait ErasedPropertyInfo {
         property2: Pin<Rc<corelib::Property<Value>>>,
         map: Option<Rc<dyn corelib::rtti::TwoWayBindingMapping<Value>>>,
     );
+
+    fn link_two_way_to_model_data(
+        &self,
+        item: Pin<ItemRef>,
+        getter: Box<dyn Fn() -> Option<Value>>,
+        setter: Box<dyn Fn(&Value)>,
+    );
 }
 
 impl<Item: vtable::HasStaticVTable<corelib::items::ItemVTable>> ErasedPropertyInfo
@@ -105,6 +112,15 @@ impl<Item: vtable::HasStaticVTable<corelib::items::ItemVTable>> ErasedPropertyIn
         map: Option<Rc<dyn corelib::rtti::TwoWayBindingMapping<Value>>>,
     ) {
         (*self).link_two_way_with_map(ItemRef::downcast_pin(item).unwrap(), property2, map)
+    }
+
+    fn link_two_way_to_model_data(
+        &self,
+        item: Pin<ItemRef>,
+        getter: Box<dyn Fn() -> Option<Value>>,
+        setter: Box<dyn Fn(&Value)>,
+    ) {
+        (*self).link_two_way_to_model_data(ItemRef::downcast_pin(item).unwrap(), getter, setter)
     }
 }
 
@@ -343,18 +359,12 @@ pub fn eval_expression(expression: &Expression, local_context: &mut EvalLocalCon
                 i_slint_compiler::expression_tree::ImageReference::None => Ok(Default::default()),
                 i_slint_compiler::expression_tree::ImageReference::AbsolutePath(path) => {
                     if path.starts_with("data:") {
-                        match i_slint_compiler::data_uri::decode_data_uri(path) {
-                            Ok((data, extension)) => {
-                                let data: &'static [u8] = Box::leak(data.into_boxed_slice());
-                                let ext_bytes: &'static [u8] =
-                                    Box::leak(extension.into_boxed_str().into_boxed_bytes());
-                                Ok(corelib::graphics::load_image_from_embedded_data(
-                                    corelib::slice::Slice::from_slice(data),
-                                    corelib::slice::Slice::from_slice(ext_bytes),
-                                ))
-                            }
-                            Err(_) => Err(Default::default()),
-                        }
+                        i_slint_compiler::data_uri::decode_data_uri(path)
+                            .ok()
+                            .and_then(|(data, extension)| {
+                                corelib::graphics::decode_image_data(&data, &extension)
+                            })
+                            .ok_or_else(Default::default)
                     } else {
                         let path = std::path::Path::new(path);
                         if path.starts_with("builtin:/") {
@@ -466,17 +476,20 @@ pub fn eval_expression(expression: &Expression, local_context: &mut EvalLocalCon
         Expression::EnumerationValue(value) => {
             Value::EnumerationValue(value.enumeration.name.to_string(), value.to_string())
         }
-        Expression::Keys(ks) => Value::Keys(i_slint_core::input::make_keys(
-            SharedString::from(&*ks.key),
-            i_slint_core::input::KeyboardModifiers {
-                alt: ks.modifiers.alt,
-                control: ks.modifiers.control,
-                shift: ks.modifiers.shift,
-                meta: ks.modifiers.meta,
-            },
-            ks.ignore_shift,
-            ks.ignore_alt,
-        )),
+        Expression::Keys(ks) => {
+            let mut modifiers = i_slint_core::input::KeyboardModifiers::default();
+            modifiers.alt = ks.modifiers.alt;
+            modifiers.control = ks.modifiers.control;
+            modifiers.shift = ks.modifiers.shift;
+            modifiers.meta = ks.modifiers.meta;
+
+            Value::Keys(i_slint_core::input::make_keys(
+                SharedString::from(&*ks.key),
+                modifiers,
+                ks.ignore_shift,
+                ks.ignore_alt,
+            ))
+        }
         Expression::ReturnStatement(x) => {
             let val = x.as_ref().map_or(Value::Void, |x| eval_expression(x, local_context));
             if local_context.return_value.is_none() {

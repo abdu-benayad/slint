@@ -28,8 +28,7 @@ use crate::platform::Clipboard;
 use crate::rtti::*;
 use crate::window::{InputMethodProperties, InputMethodRequest, WindowAdapter, WindowInner};
 use crate::{Callback, Coord, Property, SharedString, SharedVector};
-use alloc::rc::Rc;
-use alloc::string::String;
+use alloc::{rc::Rc, string::String};
 use const_field_offset::FieldOffsets;
 use core::cell::Cell;
 use core::pin::Pin;
@@ -965,71 +964,41 @@ impl Item for TextInput {
                     return KeyEventResult::EventAccepted;
                 }
 
-                match event.text_shortcut() {
-                    Some(text_shortcut) if !self.read_only() => match text_shortcut {
-                        TextShortcut::Move(direction) => {
-                            TextInput::move_cursor(
-                                self,
-                                direction,
-                                event.key_event.modifiers.into(),
-                                TextChangeNotify::TriggerCallbacks,
-                                window_adapter,
-                                self_rc,
-                            );
-                            return KeyEventResult::EventAccepted;
-                        }
-                        TextShortcut::DeleteForward => {
-                            TextInput::select_and_delete(
-                                self,
-                                TextCursorDirection::Forward,
-                                window_adapter,
-                                self_rc,
-                            );
-                            return KeyEventResult::EventAccepted;
-                        }
-                        TextShortcut::DeleteBackward => {
-                            // Special case: backspace breaks the grapheme and selects the previous character
-                            TextInput::select_and_delete(
-                                self,
-                                TextCursorDirection::PreviousCharacter,
-                                window_adapter,
-                                self_rc,
-                            );
-                            return KeyEventResult::EventAccepted;
-                        }
-                        TextShortcut::DeleteWordForward => {
-                            TextInput::select_and_delete(
-                                self,
-                                TextCursorDirection::ForwardByWord,
-                                window_adapter,
-                                self_rc,
-                            );
-                            return KeyEventResult::EventAccepted;
-                        }
-                        TextShortcut::DeleteWordBackward => {
-                            TextInput::select_and_delete(
-                                self,
-                                TextCursorDirection::BackwardByWord,
-                                window_adapter,
-                                self_rc,
-                            );
-                            return KeyEventResult::EventAccepted;
-                        }
-                        TextShortcut::DeleteToStartOfLine => {
-                            TextInput::select_and_delete(
-                                self,
-                                TextCursorDirection::StartOfLine,
-                                window_adapter,
-                                self_rc,
-                            );
-                            return KeyEventResult::EventAccepted;
-                        }
-                    },
-                    Some(_) => {
+                let delete_direction = match event.text_shortcut() {
+                    Some(TextShortcut::Move(direction)) => {
+                        TextInput::move_cursor(
+                            self,
+                            direction,
+                            event.key_event.modifiers.into(),
+                            TextChangeNotify::TriggerCallbacks,
+                            window_adapter,
+                            self_rc,
+                        );
+                        return KeyEventResult::EventAccepted;
+                    }
+                    // Special case: backspace breaks the grapheme and selects the previous character
+                    Some(TextShortcut::DeleteBackward) => {
+                        Some(TextCursorDirection::PreviousCharacter)
+                    }
+                    Some(TextShortcut::DeleteForward) => Some(TextCursorDirection::Forward),
+                    Some(TextShortcut::DeleteWordForward) => {
+                        Some(TextCursorDirection::ForwardByWord)
+                    }
+                    Some(TextShortcut::DeleteWordBackward) => {
+                        Some(TextCursorDirection::BackwardByWord)
+                    }
+                    Some(TextShortcut::DeleteToStartOfLine) => {
+                        Some(TextCursorDirection::StartOfLine)
+                    }
+                    None => None,
+                };
+                if let Some(direction) = delete_direction {
+                    if self.read_only() {
                         return KeyEventResult::EventIgnored;
                     }
-                    None => (),
-                };
+                    TextInput::select_and_delete(self, direction, window_adapter, self_rc);
+                    return KeyEventResult::EventAccepted;
+                }
 
                 if let Some(keycode) = event.key_event.text.chars().next()
                     && keycode == key_codes::Return
@@ -1306,7 +1275,7 @@ impl HasFont for TextInput {
 
 impl RenderString for TextInput {
     fn text(self: Pin<&Self>) -> PlainOrStyledText {
-        PlainOrStyledText::Plain(self.as_ref().text())
+        PlainOrStyledText::Plain(self.as_ref().visual_representation(None).text.clone())
     }
 }
 
@@ -1399,7 +1368,7 @@ fn safe_byte_offset(unsafe_byte_offset: i32, text: &str) -> usize {
 #[derive(Debug)]
 pub struct TextInputVisualRepresentation {
     /// The text to be rendered including any pre-edit string
-    pub text: String,
+    pub text: SharedString,
     /// If set, this field specifies the range as byte offsets within the text field where the composition
     /// is in progress. Renderers typically provide visual feedback for the currently composed text, such as
     /// by using underlines.
@@ -1412,7 +1381,7 @@ pub struct TextInputVisualRepresentation {
     pub text_color: Brush,
     /// The color of the blinking cursor
     pub cursor_color: Color,
-    text_without_password: Option<String>,
+    text_without_password: Option<SharedString>,
     password_character: char,
 }
 
@@ -1450,14 +1419,25 @@ impl TextInputVisualRepresentation {
         self.password_character = password_character;
     }
 
-    /// Use this function to make a byte offset in the text used for rendering back to a byte offset in the
+    /// Use this function to make a byte offset in the visual text (used for rendering) back to a byte offset in the
     /// TextInput's text. The offsets might differ for example for password text input fields.
-    pub fn map_byte_offset_from_byte_offset_in_visual_text(&self, byte_offset: usize) -> usize {
+    pub fn map_byte_offset_from_visual_text_to_actual_text(&self, byte_offset: usize) -> usize {
         if let Some(text_without_password) = self.text_without_password.as_ref() {
             text_without_password
                 .char_indices()
                 .nth(byte_offset / self.password_character.len_utf8())
                 .map_or(text_without_password.len(), |(r, _)| r)
+        } else {
+            byte_offset
+        }
+    }
+
+    /// Map the byte_offset inside the TextInput's text to the byte offset in the visual text.
+    /// This is the opposite of `map_byte_offset_from_byte_offset_in_visual_text`.
+    pub fn map_byte_offset_from_actual_to_visual_text(&self, byte_offset: usize) -> usize {
+        if let Some(text_without_password) = self.text_without_password.as_ref() {
+            text_without_password[..byte_offset].chars().count()
+                * self.password_character.len_utf8()
         } else {
             byte_offset
         }
@@ -2008,13 +1988,14 @@ impl TextInput {
         self: Pin<&Self>,
         password_character_fn: Option<fn() -> char>,
     ) -> TextInputVisualRepresentation {
-        let mut text: String = self.text().into();
+        let mut text = self.text();
 
         let preedit_text = self.preedit_text();
         let (preedit_range, selection_range, cursor_position) = if !preedit_text.is_empty() {
             let cursor_position = self.cursor_position(&text);
 
-            text.insert_str(cursor_position, &preedit_text);
+            text =
+                [&text[..cursor_position], &preedit_text, &text[cursor_position..]].concat().into();
             let preedit_range = cursor_position..cursor_position + preedit_text.len();
 
             if let Some(preedit_sel) = self.preedit_selection().as_option() {
@@ -2030,7 +2011,7 @@ impl TextInput {
             let (selection_anchor_pos, selection_cursor_pos) = self.selection_anchor_and_cursor();
             let selection_range = selection_anchor_pos..selection_cursor_pos;
             let cursor_position = self.cursor_position(&text);
-            let cursor_visible = self.cursor_visible() && self.enabled() && !self.read_only();
+            let cursor_visible = self.cursor_visible() && self.enabled();
             let cursor_position = if cursor_visible && selection_range.is_empty() {
                 Some(cursor_position)
             } else {

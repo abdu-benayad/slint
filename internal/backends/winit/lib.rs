@@ -96,8 +96,8 @@ mod renderer {
 mod accesskit;
 #[cfg(muda)]
 mod muda;
-#[cfg(not(use_winit_theme))]
-mod xdg_color_scheme;
+#[cfg(xdg_desktop_settings)]
+mod xdg_desktop_settings;
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) mod wasm_input_helper;
@@ -407,6 +407,8 @@ pub(crate) struct SharedBackendData {
     /// event loop or is from a stale event.
     event_loop_generation: Arc<AtomicUsize>,
     is_wayland: bool,
+    #[cfg(xdg_desktop_settings)]
+    cursor_blink_interval: std::cell::Cell<core::time::Duration>,
     #[cfg(target_os = "ios")]
     #[allow(unused)]
     keyboard_notifications: ios::KeyboardNotifications,
@@ -496,6 +498,8 @@ impl SharedBackendData {
             event_loop_proxy,
             event_loop_generation: Default::default(),
             is_wayland,
+            #[cfg(xdg_desktop_settings)]
+            cursor_blink_interval: std::cell::Cell::new(DEFAULT_CURSOR_FLASH_CYCLE),
             #[cfg(target_os = "ios")]
             keyboard_notifications,
         })
@@ -662,6 +666,8 @@ impl Backend {
     }
 }
 
+const DEFAULT_CURSOR_FLASH_CYCLE: core::time::Duration = core::time::Duration::from_millis(1000);
+
 impl i_slint_core::platform::Platform for Backend {
     fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, PlatformError> {
         let mut attrs = WinitWindowAdapter::window_attributes()?;
@@ -779,6 +785,41 @@ impl i_slint_core::platform::Platform for Backend {
 
     fn clipboard(&self) -> &dyn i_slint_core::clipboard::PlatformClipboard {
         &self.shared_data.clipboard
+    }
+
+    #[cfg(target_os = "windows")]
+    fn cursor_flash_cycle(&self) -> core::time::Duration {
+        use windows::Win32::UI::WindowsAndMessaging::GetCaretBlinkTime;
+        let ms = unsafe { GetCaretBlinkTime() };
+        if ms == u32::MAX {
+            // INFINITE — blinking disabled
+            core::time::Duration::ZERO
+        } else if ms == 0 {
+            DEFAULT_CURSOR_FLASH_CYCLE
+        } else {
+            // Win32 returns the half-cycle duration
+            core::time::Duration::from_millis(ms as u64 * 2)
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn cursor_flash_cycle(&self) -> core::time::Duration {
+        use objc2_foundation::NSUserDefaults;
+        let defaults = NSUserDefaults::standardUserDefaults();
+        let key = objc2_foundation::NSString::from_str("NSTextInsertionPointBlinkPeriod");
+        let period = defaults.integerForKey(&key);
+        if period < 0 {
+            core::time::Duration::ZERO
+        } else if period == 0 {
+            DEFAULT_CURSOR_FLASH_CYCLE
+        } else {
+            core::time::Duration::from_millis(period as u64)
+        }
+    }
+
+    #[cfg(xdg_desktop_settings)]
+    fn cursor_flash_cycle(&self) -> core::time::Duration {
+        self.shared_data.cursor_blink_interval.get()
     }
 
     fn open_url(&self, url: &str) -> Result<(), i_slint_core::platform::PlatformError> {

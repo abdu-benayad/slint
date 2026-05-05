@@ -381,11 +381,10 @@ cpp! {{
                 preedit_string: qttypes::QString as "QString", replacement_start: i32 as "int", replacement_length: i32 as "int",
                 preedit_cursor: i32 as "int"] {
                     let runtime_window = WindowInner::from_pub(&rust_window.window);
+                    let mut key_event = KeyEvent::default();
+                    key_event.text = i_slint_core::format!("{}", commit_string);
                     let event = InternalKeyEvent {
-                        key_event: KeyEvent {
-                            text: i_slint_core::format!("{}", commit_string),
-                            ..Default::default()
-                        },
+                        key_event,
                         event_type: KeyEventType::UpdateComposition,
                         preedit_text: i_slint_core::format!("{}", preedit_string),
                         preedit_selection: (preedit_cursor >= 0).then_some(preedit_cursor..preedit_cursor),
@@ -1685,6 +1684,12 @@ impl QtItemRenderer<'_> {
                 height: (layer_size.height * dpr) as _,
             };
 
+            // Skip rendering if the size is zero since QPainter fails to draw
+            // on an empty QImage (and also to avoid wasting CPU cycles).
+            if layer_size.width == 0 || layer_size.height == 0 {
+                return qttypes::QPixmap::default();
+            }
+
             let mut layer_image = qttypes::QImage::new(layer_size, qttypes::ImageFormat::ARGB32_Premultiplied);
             layer_image.fill(qttypes::QColor::from_rgba_f(0., 0., 0., 0.));
 
@@ -1805,6 +1810,8 @@ pub struct QtWindow {
 
     // Last icon image set on the window
     window_icon_cache_key: RefCell<Option<ImageCacheKey>>,
+
+    parent: Weak<QtWindow>,
 }
 
 impl Drop for QtWindow {
@@ -1818,7 +1825,7 @@ impl Drop for QtWindow {
 }
 
 impl QtWindow {
-    pub fn new() -> Rc<Self> {
+    pub fn new(parent: Weak<QtWindow>) -> Rc<Self> {
         let rc = Rc::new_cyclic(|self_weak| {
             let window_ptr = self_weak.clone().into_raw();
             let widget_ptr = cpp! {unsafe [window_ptr as "void*"] -> QWidgetPtr as "std::unique_ptr<QWidget, QWidgetDeleteLater>" {
@@ -1841,6 +1848,7 @@ impl QtWindow {
                 tree_structure_changed: RefCell::new(false),
                 color_scheme: Default::default(),
                 window_icon_cache_key: Default::default(),
+                parent,
             }
         });
         let widget_ptr = rc.widget_ptr();
@@ -2039,7 +2047,12 @@ impl WindowAdapter for QtWindow {
         let widget_ptr = self.widget_ptr();
         let pos = qttypes::QPoint { x: physical_position.x as _, y: physical_position.y as _ };
         cpp! {unsafe [widget_ptr as "QWidget*", pos as "QPoint"] {
-            widget_ptr->move(pos);
+            const auto* parent = widget_ptr->parentWidget();
+            if (parent) {
+                widget_ptr->move(parent->mapToGlobal(QPoint(0,0)) + pos);
+            } else {
+                widget_ptr->move(pos);
+            }
         }};
     }
 
@@ -2215,6 +2228,10 @@ fn into_qsize(logical_size: i_slint_core::api::LogicalSize) -> qttypes::QSize {
 }
 
 impl WindowAdapterInternal for QtWindow {
+    fn get_parent(&self) -> Option<Rc<dyn WindowAdapter>> {
+        self.parent.clone().upgrade().map(|rc| rc as _)
+    }
+
     fn register_item_tree(&self, _: ItemTreeRefPin) {
         self.tree_structure_changed.replace(true);
     }
@@ -2227,18 +2244,12 @@ impl WindowAdapterInternal for QtWindow {
         self.tree_structure_changed.replace(true);
     }
 
-    fn create_popup(&self, geometry: LogicalRect) -> Option<Rc<dyn WindowAdapter>> {
-        let popup_window = QtWindow::new();
-
-        let size = qttypes::QSize { width: geometry.width() as _, height: geometry.height() as _ };
-
+    fn create_popup_window_adapter(&self) -> Option<Rc<dyn WindowAdapter>> {
+        let popup_window = QtWindow::new(self.self_weak.clone());
         let popup_ptr = popup_window.widget_ptr();
-        let pos = qttypes::QPoint { x: geometry.origin.x as _, y: geometry.origin.y as _ };
         let widget_ptr = self.widget_ptr();
-        cpp! {unsafe [widget_ptr as "QWidget*", popup_ptr as "QWidget*", pos as "QPoint", size as "QSize"] {
+        cpp! {unsafe [widget_ptr as "QWidget*", popup_ptr as "QWidget*"] {
             popup_ptr->setParent(widget_ptr, Qt::Popup);
-            popup_ptr->setGeometry(QRect(pos + widget_ptr->mapToGlobal(QPoint(0,0)), size));
-            popup_ptr->show();
         }};
         Some(popup_window as _)
     }

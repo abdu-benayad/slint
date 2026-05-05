@@ -32,6 +32,10 @@ fn enums(path: &Path) -> anyhow::Result<()> {
             writeln!(enums_priv, "using slint::testing::AccessibleRole;")?;
             &mut enums_pub
         }};
+        (Orientation) => {{
+            writeln!(enums_priv, "using slint::Orientation;")?;
+            &mut enums_pub
+        }};
         ($_:ident) => {
             &mut enums_priv
         };
@@ -579,6 +583,7 @@ fn gen_corelib(
             "slint_windowrc_set_component",
             "slint_windowrc_show_popup",
             "slint_windowrc_close_popup",
+            "slint_windowrc_create_popup_window_adapter",
             "slint_windowrc_set_rendering_notifier",
             "slint_windowrc_request_redraw",
             "slint_windowrc_on_close_requested",
