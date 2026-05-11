@@ -7,3 +7,7 @@
 members = ['slint-hosts-bevy', 'bevy-hosts-slint', 'bevy-hosts-slint-gpu']
 
 resolver = "3"
+
+[patch.crates-io]
+skia-safe = { git = "https://github.com/slint-ui/rust-skia", branch = "simon/yocto-build" }
+skia-bindings = { git = "https://github.com/slint-ui/rust-skia", branch = "simon/yocto-build" }
