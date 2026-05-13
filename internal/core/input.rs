@@ -998,6 +998,9 @@ pub struct MouseInputState {
     /// this to decide whether to deliver a Drop — matching OS DnD pipelines, where a
     /// target that didn't previously accept never receives a drop.
     pub(crate) drop_target: Option<ItemWeak>,
+    /// The DragArea that initiated the in-flight drag, used to fire `drag-finished` and
+    /// toggle `dragging`.
+    pub(crate) drag_source: Option<ItemWeak>,
     delayed: Option<(crate::timers::Timer, MouseEvent)>,
     delayed_exit_items: Vec<ItemWeak>,
     pub(crate) cursor: MouseCursor,
@@ -1098,9 +1101,10 @@ pub(crate) fn handle_mouse_grab(
         InputEventResult::StartDrag => {
             mouse_input_state.grabbed = false;
             let drag_area_item = grabber.downcast::<crate::items::DragArea>().unwrap();
-            let data = drag_area_item.as_pin_ref().data().clone();
-
-            mouse_input_state.drag_data = Some(DropEvent { data, position: Default::default() });
+            let drag_area = drag_area_item.as_pin_ref();
+            mouse_input_state.drag_data = Some(drag_area.initial_drop_event());
+            mouse_input_state.drag_source = Some(grabber.downgrade());
+            drag_area.dragging.set(true);
             None
         }
         _ => {
@@ -1174,6 +1178,7 @@ pub fn process_mouse_input(
     let mut result = MouseInputState {
         drag_data: mouse_input_state.drag_data.clone(),
         drop_target: mouse_input_state.drop_target.clone(),
+        drag_source: mouse_input_state.drag_source.clone(),
         cursor: mouse_input_state.cursor,
         ..Default::default()
     };
@@ -1188,10 +1193,8 @@ pub fn process_mouse_input(
     if matches!(mouse_event, MouseEvent::DragMove(_)) {
         // Remember the accepting DropArea (or forget if none did) so the subsequent
         // Release knows whether to deliver a Drop.
-        result.drop_target = r
-            .has_aborted()
-            .then(|| result.item_stack.last().map(|(w, _)| w.clone()))
-            .flatten();
+        result.drop_target =
+            r.has_aborted().then(|| result.item_stack.last().map(|(w, _)| w.clone())).flatten();
     }
     if mouse_input_state.delayed.is_some()
         && (!r.has_aborted()
@@ -1373,9 +1376,10 @@ fn send_mouse_event_to_item(
                 InputEventFilterResult::ForwardAndInterceptGrab;
             result.grabbed = false;
             let drag_area_item = item_rc.downcast::<crate::items::DragArea>().unwrap();
-            let data = drag_area_item.as_pin_ref().data().clone();
-
-            result.drag_data = Some(DropEvent { data, position: Default::default() });
+            let drag_area = drag_area_item.as_pin_ref();
+            result.drag_data = Some(drag_area.initial_drop_event());
+            result.drag_source = Some(item_rc.downgrade());
+            drag_area.dragging.set(true);
             VisitChildrenResult::abort(item_rc.index(), 0)
         }
     }
