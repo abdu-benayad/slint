@@ -7,6 +7,10 @@ All notable changes to this project are documented in this file.
  - FemtoVG/Skia (parley): Fixed `TextOverflow::Elide` silently no-op when the resolved font
    lacks U+2026 (e.g. Noto Sans Arabic). Falls back to U+002E (`.`) so a truncation
    indicator is always drawn.
+ - FemtoVG/Skia (parley): Fixed `TextOverflow::Elide` not rendering a truncation indicator
+   for right-aligned text whose natural width exceeds the available width — including
+   RTL scripts such as Arabic and Hebrew. The elipsis now appears at the leading (left)
+   edge of the visible truncated text.
 
 ## [1.16.1] - 2026-04-23
 
