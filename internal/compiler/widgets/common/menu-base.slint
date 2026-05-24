@@ -1,6 +1,8 @@
 // Copyright © SixtyFPS GmbH <info@slint.dev>
 // SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-Slint-Royalty-free-2.0 OR LicenseRef-Slint-Software-3.0
 
+import { LayoutDirection } from "layout-direction.slint";
+
 export component MenuBarItemBase {
     in property <MenuEntry> entry;
     in property <brush> default-foreground;
@@ -32,6 +34,9 @@ export component MenuBarItemBase {
                 label := Text {
                     text: entry.title;
                     color: root.default-foreground;
+                    horizontal-alignment: LayoutDirection.rtl
+                        ? TextHorizontalAlignment.right
+                        : TextHorizontalAlignment.left;
                 }
             }
 
@@ -63,14 +68,23 @@ export component MenuBarItemBase {
 
 export component MenuBarBase inherits Rectangle {
     in property <length> spacing <=> layout.spacing;
-    in property <LayoutAlignment> alignment <=> layout.alignment;
+    // rtl-aware DEFAULT (not a hard override): packs the bar toward the trailing
+    // edge in RTL, but a consumer can still set `alignment` explicitly — and an
+    // explicit alignment intentionally wins over the auto-flip. (Previously this
+    // was `<=> layout.alignment` with an inline override, which silently killed
+    // the public input; this preserves it.)
+    // Per-item order within the bar still can't reverse — items arrive via
+    // @children, which Slint injects in source order; only the cluster edge moves.
+    in property <LayoutAlignment> alignment: LayoutDirection.rtl
+        ? LayoutAlignment.end
+        : LayoutAlignment.start;
     in property <length> min-layout-height;
     in property <length> horizontal-padding;
 
     min-height: max(root.min-layout-height, layout.min-height);
 
     layout := HorizontalLayout {
-        alignment: start;
+        alignment: root.alignment;
         padding-left: root.horizontal-padding;
         padding-right: root.horizontal-padding;
 
@@ -99,16 +113,26 @@ export component MenuItemBase {
     in property <brush> current-foreground;
     in property <brush> current-background;
     in property <brush> separator-color;
-    in property <length> font-size <=> label.font-size;
-    in property <int> font-weight <=> label.font-weight;
+    // PROTOTYPE (duplicated-branch variant): font-size/font-weight/spacing were
+    // two-way-bound to the now-duplicated `label`/`layout` named elements. They
+    // become plain inputs that both branches read one-way.
+    in property <length> font-size;
+    in property <int> font-weight;
     in property <length> border-radius <=> background-layer.border-radius;
     in property <bool> is-current;
     in property <MenuEntry> entry;
     in property <image> sub-menu-icon;
-    in property <length> spacing <=> layout.spacing;
+    in property <length> spacing: 10px;
     in property <length> icon-size;
     in property <length> horizontal-padding;
     in property <length> vertical-padding;
+
+    // Label foreground derived here (not mutated in `states`) because the label
+    // is duplicated across the LTR/RTL branches and `states` can only target a
+    // single named element.
+    property <brush> resolved-foreground: root.is-current
+        ? root.current-foreground
+        : root.default-foreground;
 
     callback set-current();
     callback clear-current();
@@ -120,51 +144,114 @@ export component MenuItemBase {
         touch-area := TouchArea {
             visible: !entry.is-separator;
             enabled: entry.enabled;
+            // Dim the whole row content when disabled — uniform across icon,
+            // label, shortcut and sub-arrow. Opacity on the TouchArea (not a
+            // `states` rule, not the label alone) covers every cell; the
+            // highlight lives on the parent background-layer, so it stays bright.
+            opacity: entry.enabled ? 1.0 : 0.5;
 
-            layout := HorizontalLayout {
+            // INVARIANT — the two branches below are the SAME four cells in
+            // REVERSE order: LTR [icon, label, shortcut, arrow] and its exact
+            // mirror. Every direction-dependent property reads LayoutDirection.rtl
+            // in BOTH branches, so the cell blocks are identical apart from each
+            // label's local name (ltr-label/rtl-label, used only for the icon's
+            // font-metrics). Edit the two branches in lockstep. (True single
+            // source would need FlexboxLayout — `\draft`, experimental-gated — or
+            // per-cell components; neither earns its keep for four cells.)
+
+            // ----- LTR: [icon, label, shortcut, sub-arrow]
+            if !LayoutDirection.rtl: HorizontalLayout {
                 padding-top: root.vertical-padding;
                 padding-bottom: root.vertical-padding;
                 padding-left: root.horizontal-padding;
                 padding-right: root.horizontal-padding;
-
-                spacing: 10px;
+                spacing: root.spacing;
 
                 Rectangle {
                     width: root.icon-size;
                     y: (parent.height - self.height) / 2;
-
-                    if entry.checked: Text {
-                        text: "✓";
-                    }
-
+                    if entry.checked: Text { text: "✓"; color: root.resolved-foreground; }
                     Image {
                         source: entry.icon;
                         accessible-role: none;
                         image-fit: contain;
                         width: 100%;
-                        height: label.font-metrics.ascent - label.font-metrics.descent;
+                        height: ltr-label.font-metrics.ascent - ltr-label.font-metrics.descent;
                     }
                 }
-
-                label := Text {
+                ltr-label := Text {
                     text: entry.title;
-                    color: root.default-foreground;
+                    color: root.resolved-foreground;
+                    font-size: root.font-size;
+                    font-weight: root.font-weight;
                     vertical-alignment: center;
+                    horizontal-alignment: LayoutDirection.rtl
+                        ? TextHorizontalAlignment.right
+                        : TextHorizontalAlignment.left;
                 }
-
-                shortcut := Text {
+                Text {
                     text: entry.shortcut.to-string();
                     color: root.alternate-foreground;
                     vertical-alignment: center;
-                    horizontal-alignment: TextHorizontalAlignment.right;
+                    horizontal-alignment: LayoutDirection.rtl
+                        ? TextHorizontalAlignment.left
+                        : TextHorizontalAlignment.right;
                 }
+                if entry.has-sub-menu : Image {
+                    width: root.icon-size;
+                    y: (parent.height - self.height) / 2;
+                    source: root.sub-menu-icon;
+                    colorize: root.resolved-foreground;
+                    accessible-role: none;
+                    transform-scale-x: LayoutDirection.rtl ? -100% : 100%;
+                }
+            }
+
+            // ----- RTL: the exact reverse of the LTR branch above
+            if LayoutDirection.rtl: HorizontalLayout {
+                padding-top: root.vertical-padding;
+                padding-bottom: root.vertical-padding;
+                padding-left: root.horizontal-padding;
+                padding-right: root.horizontal-padding;
+                spacing: root.spacing;
 
                 if entry.has-sub-menu : Image {
                     width: root.icon-size;
                     y: (parent.height - self.height) / 2;
                     source: root.sub-menu-icon;
-                    colorize: label.color;
+                    colorize: root.resolved-foreground;
                     accessible-role: none;
+                    transform-scale-x: LayoutDirection.rtl ? -100% : 100%;
+                }
+                Text {
+                    text: entry.shortcut.to-string();
+                    color: root.alternate-foreground;
+                    vertical-alignment: center;
+                    horizontal-alignment: LayoutDirection.rtl
+                        ? TextHorizontalAlignment.left
+                        : TextHorizontalAlignment.right;
+                }
+                rtl-label := Text {
+                    text: entry.title;
+                    color: root.resolved-foreground;
+                    font-size: root.font-size;
+                    font-weight: root.font-weight;
+                    vertical-alignment: center;
+                    horizontal-alignment: LayoutDirection.rtl
+                        ? TextHorizontalAlignment.right
+                        : TextHorizontalAlignment.left;
+                }
+                Rectangle {
+                    width: root.icon-size;
+                    y: (parent.height - self.height) / 2;
+                    if entry.checked: Text { text: "✓"; color: root.resolved-foreground; }
+                    Image {
+                        source: entry.icon;
+                        accessible-role: none;
+                        image-fit: contain;
+                        width: 100%;
+                        height: rtl-label.font-metrics.ascent - rtl-label.font-metrics.descent;
+                    }
                 }
             }
 
@@ -198,10 +285,6 @@ export component MenuItemBase {
     states [
         is-current when root.is-current : {
             background-layer.background: root.current-background;
-            label.color: root.current-foreground;
-        }
-        disabled when !entry.enabled : {
-            label.opacity: 0.5;
         }
     ]
 }

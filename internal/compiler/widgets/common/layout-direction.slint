@@ -1,0 +1,23 @@
+// Copyright © SixtyFPS GmbH <info@slint.dev>
+// SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-Slint-Royalty-free-2.0 OR LicenseRef-Slint-Software-3.0
+
+// PROTOTYPE (abdu-slint-ui spike): a document-scoped layout-direction signal the
+// application sets once and the shared menu widgets (common/menu-base.slint) read.
+// Proven reachable inside runtime-generated popup item-trees (see the color-scheme
+// probe). Production would model this as a LayoutDirection enum (ltr/rtl); a bool
+// keeps the spike minimal — and matches the consumer library's own `Locale.rtl`.
+//
+// SINGLE SOURCE OF TRUTH: this is a SECOND rtl flag — the consumer library
+// (abdu-slint-ui) already has `Locale.rtl`. The widget library cannot import the
+// consumer's global, so the consumer MUST mirror its direction into this one,
+// once, at startup, e.g. in Rust:
+//
+//     // whenever the app's locale direction changes:
+//     LayoutDirection::get(&window).set_rtl(locale.is_rtl());
+//
+// or in .slint by binding at the app root. If the two desync, native menus and
+// library components disagree on direction. There is no way to auto-derive one
+// from the other inside the fork; the mirror is the consumer's responsibility.
+export global LayoutDirection {
+    in-out property <bool> rtl: false;
+}
