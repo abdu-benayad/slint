@@ -586,8 +586,22 @@ impl NodeCollection {
             && item
                 .accessible_string_property(AccessibleStringProperty::Checked)
                 .is_some_and(|x| x == "true");
+        // Tri-state: `accessible-checked-mixed` (the fork's CheckedMixed property)
+        // takes precedence over Checked and maps to accesskit's Toggled::Mixed
+        // ("partially checked"). Read inside the is_checkable guard so a
+        // non-checkable element can never be marked Mixed.
+        let is_mixed = is_checkable
+            && item
+                .accessible_string_property(AccessibleStringProperty::CheckedMixed)
+                .is_some_and(|x| x == "true");
         if is_checkable {
-            node.set_toggled(if is_checked { Toggled::True } else { Toggled::False });
+            node.set_toggled(if is_mixed {
+                Toggled::Mixed
+            } else if is_checked {
+                Toggled::True
+            } else {
+                Toggled::False
+            });
         }
 
         if let Some(description) =

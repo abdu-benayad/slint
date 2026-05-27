@@ -702,6 +702,22 @@ impl ElementHandle {
             .and_then(|item| item.parse().ok())
     }
 
+    /// Returns the value of the `accessible-checked-mixed` property, if present —
+    /// `true` when a tri-state checkbox is in the indeterminate ("partially
+    /// checked") state. Lets headless tests assert the mixed AT state that the
+    /// accesskit bridge maps to `Toggled::Mixed`.
+    pub fn accessible_checked_mixed(&self) -> Option<bool> {
+        if self.element_index != 0 {
+            return None;
+        }
+        self.item
+            .upgrade()
+            .and_then(|item| {
+                item.accessible_string_property(AccessibleStringProperty::CheckedMixed)
+            })
+            .and_then(|item| item.parse().ok())
+    }
+
     /// Returns the value of the `accessible-item-selected` property, if present
     pub fn accessible_item_selected(&self) -> Option<bool> {
         if self.element_index != 0 {

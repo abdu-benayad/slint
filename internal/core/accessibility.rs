@@ -38,6 +38,13 @@ pub enum AccessibleStringProperty {
     ValueMaximum,
     ValueMinimum,
     ValueStep,
+    /// Tri-state checkbox "indeterminate"/"mixed". `"true"` => the element is in
+    /// the mixed state (announced by the platform as "partially checked"),
+    /// overriding `Checked`. Appended at the end of the enum deliberately so no
+    /// existing `#[repr(u32)]` discriminant shifts (C++-ABI stability). Maps to
+    /// the `accessible-checked-mixed` reserved property via the generic
+    /// `to_pascal_case` name->variant lowering.
+    CheckedMixed,
 }
 
 /// The argument of an accessible action.

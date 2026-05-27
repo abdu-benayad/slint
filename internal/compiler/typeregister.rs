@@ -249,6 +249,7 @@ pub fn reserved_accessibility_properties() -> impl Iterator<Item = (&'static str
         //("accessible-role", ...)
         ("accessible-checkable", Type::Bool),
         ("accessible-checked", Type::Bool),
+        ("accessible-checked-mixed", Type::Bool),
         ("accessible-delegate-focus", Type::Int32),
         ("accessible-description", Type::String),
         ("accessible-enabled", Type::Bool),

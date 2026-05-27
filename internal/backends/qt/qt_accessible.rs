@@ -211,6 +211,7 @@ impl SlintAccessibleItemData {
             if let Some(item_rc) = item.upgrade() {
                 item_rc.accessible_string_property(AccessibleStringProperty::Checkable);
                 item_rc.accessible_string_property(AccessibleStringProperty::Checked);
+                item_rc.accessible_string_property(AccessibleStringProperty::CheckedMixed);
                 item_rc.accessible_string_property(AccessibleStringProperty::Expandable);
                 item_rc.accessible_string_property(AccessibleStringProperty::Expanded);
                 item_rc.accessible_string_property(AccessibleStringProperty::ReadOnly);
