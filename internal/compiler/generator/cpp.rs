@@ -4492,6 +4492,14 @@ fn compile_builtin_function_call(
         BuiltinFunction::StringToUppercase => {
             format!("{}.to_uppercase()", a.next().unwrap())
         }
+        BuiltinFunction::StringStartsWith => {
+            let (a1, a2) = (a.next().unwrap(), a.next().unwrap());
+            format!("{}.starts_with({})", a1, a2)
+        }
+        BuiltinFunction::StringContains => {
+            let (a1, a2) = (a.next().unwrap(), a.next().unwrap());
+            format!("(std::string_view({}).find(std::string_view({})) != std::string_view::npos)", a1, a2)
+        }
         BuiltinFunction::KeysToString => {
             format!("{}.to_string()", a.next().unwrap())
         }

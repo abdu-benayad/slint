@@ -1224,6 +1224,30 @@ fn call_builtin_function(
                 panic!("Argument not a string");
             }
         }
+        BuiltinFunction::StringStartsWith => {
+            if arguments.len() != 2 {
+                panic!("internal error: incorrect argument count to StringStartsWith")
+            }
+            match (
+                eval_expression(&arguments[0], local_context),
+                eval_expression(&arguments[1], local_context),
+            ) {
+                (Value::String(s), Value::String(prefix)) => Value::Bool(s.starts_with(prefix.as_str())),
+                _ => panic!("Argument not a string"),
+            }
+        }
+        BuiltinFunction::StringContains => {
+            if arguments.len() != 2 {
+                panic!("internal error: incorrect argument count to StringContains")
+            }
+            match (
+                eval_expression(&arguments[0], local_context),
+                eval_expression(&arguments[1], local_context),
+            ) {
+                (Value::String(s), Value::String(needle)) => Value::Bool(s.contains(needle.as_str())),
+                _ => panic!("Argument not a string"),
+            }
+        }
         BuiltinFunction::KeysToString => {
             if arguments.len() != 1 {
                 panic!("internal error: incorrect argument count to KeysToString")

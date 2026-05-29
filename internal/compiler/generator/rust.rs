@@ -3886,6 +3886,14 @@ fn compile_builtin_function_call(
         }
         BuiltinFunction::StringToLowercase => quote!(sp::SharedString::from(#(#a)*.to_lowercase())),
         BuiltinFunction::StringToUppercase => quote!(sp::SharedString::from(#(#a)*.to_uppercase())),
+        BuiltinFunction::StringStartsWith => {
+            let (a1, a2) = (a.next().unwrap(), a.next().unwrap());
+            quote!(#a1.as_str().starts_with(#a2.as_str()))
+        }
+        BuiltinFunction::StringContains => {
+            let (a1, a2) = (a.next().unwrap(), a.next().unwrap());
+            quote!(#a1.as_str().contains(#a2.as_str()))
+        }
         BuiltinFunction::KeysToString => quote!(sp::ToSharedString::to_shared_string(&#(#a)*)),
         BuiltinFunction::ColorRgbaStruct => quote!( #(#a)*.to_argb_u8()),
         BuiltinFunction::ColorHsvaStruct => quote!( #(#a)*.to_hsva()),

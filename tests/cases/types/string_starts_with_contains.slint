@@ -1,0 +1,57 @@
+// Copyright © SixtyFPS GmbH <info@slint.dev>
+// SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-Slint-Royalty-free-2.0 OR LicenseRef-Slint-Software-3.0
+
+export component TestCase {
+    out property<bool> sw_prefix: "Apple".starts-with("App");
+    out property<bool> sw_not: "Apple".starts-with("ple");
+    out property<bool> sw_empty: "Apple".starts-with("");
+    out property<bool> sw_unicode: "café".starts-with("ca");
+    out property<bool> ct_mid: "Apple".contains("ppl");
+    out property<bool> ct_not: "Apple".contains("xyz");
+    out property<bool> ct_empty: "Apple".contains("");
+    out property<bool> ct_unicode: "café".contains("fé");
+    // case-insensitive typeahead composition (the motivating use)
+    out property<bool> ci_typeahead: "Apple".to-lowercase().starts-with("app".to-lowercase());
+}
+
+/*
+```cpp
+auto handle = TestCase::create();
+const TestCase &instance = *handle;
+assert(instance.get_sw_prefix());
+assert(!instance.get_sw_not());
+assert(instance.get_sw_empty());
+assert(instance.get_sw_unicode());
+assert(instance.get_ct_mid());
+assert(!instance.get_ct_not());
+assert(instance.get_ct_empty());
+assert(instance.get_ct_unicode());
+assert(instance.get_ci_typeahead());
+```
+
+```rust
+let instance = TestCase::new().unwrap();
+assert!(instance.get_sw_prefix());
+assert!(!instance.get_sw_not());
+assert!(instance.get_sw_empty());
+assert!(instance.get_sw_unicode());
+assert!(instance.get_ct_mid());
+assert!(!instance.get_ct_not());
+assert!(instance.get_ct_empty());
+assert!(instance.get_ct_unicode());
+assert!(instance.get_ci_typeahead());
+```
+
+```js
+var instance = new slint.TestCase({});
+assert(instance.sw_prefix);
+assert(!instance.sw_not);
+assert(instance.sw_empty);
+assert(instance.sw_unicode);
+assert(instance.ct_mid);
+assert(!instance.ct_not);
+assert(instance.ct_empty);
+assert(instance.ct_unicode);
+assert(instance.ci_typeahead);
+```
+*/

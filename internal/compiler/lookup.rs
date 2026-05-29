@@ -1038,6 +1038,8 @@ impl LookupObject for StringExpression<'_> {
             .or_else(|| f("character-count", function_call(BuiltinFunction::StringCharacterCount)))
             .or_else(|| f("to-lowercase", member_function(BuiltinFunction::StringToLowercase)))
             .or_else(|| f("to-uppercase", member_function(BuiltinFunction::StringToUppercase)))
+            .or_else(|| f("starts-with", member_function(BuiltinFunction::StringStartsWith)))
+            .or_else(|| f("contains", member_function(BuiltinFunction::StringContains)))
     }
 }
 

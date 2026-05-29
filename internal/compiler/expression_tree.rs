@@ -73,6 +73,8 @@ pub enum BuiltinFunction {
     StringCharacterCount,
     StringToLowercase,
     StringToUppercase,
+    StringStartsWith,
+    StringContains,
     KeysToString,
     ColorRgbaStruct,
     ColorHsvaStruct,
@@ -222,6 +224,8 @@ declare_builtin_function_types!(
     StringCharacterCount: (Type::String) -> Type::Int32,
     StringToLowercase: (Type::String) -> Type::String,
     StringToUppercase: (Type::String) -> Type::String,
+    StringStartsWith: (Type::String, Type::String) -> Type::Bool,
+    StringContains: (Type::String, Type::String) -> Type::Bool,
     KeysToString: (Type::Keys) -> Type::String,
     ImplicitLayoutInfo(..): (Type::ElementReference, Type::Float32) -> typeregister::layout_info_type().into(),
     ColorRgbaStruct: (Type::Color) -> Type::Struct(Rc::new(Struct {
@@ -377,6 +381,8 @@ impl BuiltinFunction {
             | BuiltinFunction::StringCharacterCount
             | BuiltinFunction::StringToLowercase
             | BuiltinFunction::StringToUppercase
+            | BuiltinFunction::StringStartsWith
+            | BuiltinFunction::StringContains
             | BuiltinFunction::KeysToString => true,
             BuiltinFunction::ColorRgbaStruct
             | BuiltinFunction::ColorHsvaStruct
@@ -470,6 +476,8 @@ impl BuiltinFunction {
             | BuiltinFunction::StringCharacterCount
             | BuiltinFunction::StringToLowercase
             | BuiltinFunction::StringToUppercase
+            | BuiltinFunction::StringStartsWith
+            | BuiltinFunction::StringContains
             | BuiltinFunction::KeysToString => true,
             BuiltinFunction::ColorRgbaStruct
             | BuiltinFunction::ColorHsvaStruct
