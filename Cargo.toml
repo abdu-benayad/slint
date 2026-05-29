@@ -215,3 +215,17 @@ panic = "abort"
 
 [profile.dev]
 panic = "abort"
+
+# AccessKit patch — honor a provider's explicit `size_of_set` in the AT-SPI
+# layer so `setsize` reaches assistive tech (it was being dropped while
+# `posinset` worked). Points at our fork's branch off the v0.18.0 tag (==
+# the resolved versions: accesskit 0.24.0 / consumer 0.35.0 / atspi-common
+# 0.18.0); only platforms/atspi-common/src/node.rs is modified. The three
+# crates form one chain — patching only atspi-common would split
+# accesskit_consumer into two copies and break the unix<->atspi-common boundary.
+# Portable (git URL, not a machine-local path). Drop once a fixed crate is on
+# crates.io.
+[patch.crates-io]
+accesskit = { git = "https://github.com/abdu-benayad/accesskit.git", branch = "setsize-fix-0.18.0" }
+accesskit_consumer = { git = "https://github.com/abdu-benayad/accesskit.git", branch = "setsize-fix-0.18.0" }
+accesskit_atspi_common = { git = "https://github.com/abdu-benayad/accesskit.git", branch = "setsize-fix-0.18.0" }

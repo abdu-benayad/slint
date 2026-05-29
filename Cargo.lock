@@ -29,8 +29,7 @@ checksum = "366ffbaa4442f4684d91e2cd7c5ea7c4ed8add41959a31447066e279e432b618"
 [[package]]
 name = "accesskit"
 version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5351dcebb14b579ccab05f288596b2ae097005be7ee50a7c3d4ca9d0d5a66f6a"
+source = "git+https://github.com/abdu-benayad/accesskit.git?branch=setsize-fix-0.18.0#dade42068b038323b2645b192e903a2ba2085802"
 dependencies = [
  "uuid",
 ]
@@ -38,8 +37,7 @@ dependencies = [
 [[package]]
 name = "accesskit_atspi_common"
 version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "842fd8203e6dfcf531d24f5bac792088edfba7d6b35844fead191603fb32a260"
+source = "git+https://github.com/abdu-benayad/accesskit.git?branch=setsize-fix-0.18.0#dade42068b038323b2645b192e903a2ba2085802"
 dependencies = [
  "accesskit",
  "accesskit_consumer",
@@ -52,8 +50,7 @@ dependencies = [
 [[package]]
 name = "accesskit_consumer"
 version = "0.35.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53cf47daed85312e763fbf85ceca136e0d7abc68e0a7e12abe11f48172bc3b10"
+source = "git+https://github.com/abdu-benayad/accesskit.git?branch=setsize-fix-0.18.0#dade42068b038323b2645b192e903a2ba2085802"
 dependencies = [
  "accesskit",
  "hashbrown 0.16.1",
